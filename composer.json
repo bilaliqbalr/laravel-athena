@@ -1,5 +1,5 @@
 {
-    "name": "bilaliqbal/laravel-athena",
+    "name": "bilaliqbalr/laravel-athena",
     "description": "Laravel athena query builder.",
     "type": "library",
     "require": {
