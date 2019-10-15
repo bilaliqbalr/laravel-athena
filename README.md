@@ -1,2 +1,5 @@
-# laravel-athena
-Laravel athena query builder
+# Laravel Athena
+Laravel athena database driver
+
+## Installation
+`composer require bilaliqbalr/laravel-athena`
