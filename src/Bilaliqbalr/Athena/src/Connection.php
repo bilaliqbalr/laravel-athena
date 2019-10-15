@@ -186,6 +186,8 @@ class Connection extends MySqlConnection
      * @param \Illuminate\Database\Query\Builder $builder
      * @param null $query
      * @param null $binding
+     *
+     * @return mixed
      */
     protected function prepareQuery(\Illuminate\Database\Query\Builder $builder, $query = null, $binding = null)
     {
@@ -198,6 +200,8 @@ class Connection extends MySqlConnection
                 $query = preg_replace($from, $to, $query, 1);
             }
         }
+
+        return str_replace('`', '', $query);
     }
 
     /**
