@@ -7,8 +7,7 @@ $athenaConfiguration = [
     | Athena Configuration
     |--------------------------------------------------------------------------
     |
-    | Here you may configure the athena
-    | bucket, outputdirectory
+    | Here you can configure the athena
     |
     */
     'credentials' => [
