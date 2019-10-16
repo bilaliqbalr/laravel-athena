@@ -11,10 +11,9 @@ class AthenaServiceProvider extends ServiceProvider
      */
     public function boot()
     {
-        $this->publishes(
-            [__DIR__.'/../config/athena.php' => config_path('athena.php')],
-            'athena'
-        );
+        $this->publishes([
+            __DIR__.'/../config/athena.php' => config_path('athena.php'),
+        ]);
 
         Model::setConnectionResolver($this->app['db']);
 

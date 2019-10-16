@@ -33,20 +33,20 @@ class Connection extends MySqlConnection
 
     public function __construct($config)
     {
-        $this->database = $config['database'];
-
         $this->config = Config::get('athena');
 
-        $this->tablePrefix = isset($config['prefix']) ? $config['prefix'] : '';
+        $this->database = $this->config['database'];
 
-        $this->athenaClient = $this->getAthenaObj();
+        $this->tablePrefix = isset($this->config['prefix']) ? $this->config['prefix'] : '';
+
+        $this->prepareAthenaClient();
 
         $this->useDefaultQueryGrammar();
 
         $this->useDefaultPostProcessor();
     }
 
-    private function getAthenaObj()
+    private function prepareAthenaClient()
     {
         if (is_null($this->athenaClient)) {
             $options = [
@@ -56,8 +56,6 @@ class Connection extends MySqlConnection
             ];
             $this->athenaClient = new \Aws\Athena\AthenaClient($options);
         }
-
-        return $this->athenaClient;
     }
 
     public function getDefaultPostProcessor()
@@ -189,12 +187,10 @@ class Connection extends MySqlConnection
      *
      * @return mixed
      */
-    protected function prepareQuery(\Illuminate\Database\Query\Builder $builder, $query = null, $binding = null)
+    protected function prepareQuery($query, $binding)
     {
-        $query = is_null($query) ? $builder->toSql() : $query;
-        $biding = is_null($binding) ? $builder->getBindings() : $binding;
-        if (count($biding) > 0) {
-            foreach ($biding as $oneBind) {
+        if (count($binding) > 0) {
+            foreach ($binding as $oneBind) {
                 $from = '/' . preg_quote('?', '/') . '/';
                 $to = "'" . $oneBind . "'";
                 $query = preg_replace($from, $to, $query, 1);
@@ -215,13 +211,14 @@ class Connection extends MySqlConnection
 
     /**
      * @param $query
+     * @param $bindings
      *
      * @return array|\Aws\Result
      * @throws Exception
      */
-    protected function executeQuery($query)
+    protected function executeQuery($query, $bindings)
     {
-        $query = $query instanceof \Illuminate\Database\Query\Builder ? $this->prepareQuery($query) : $query;
+        $query = $this->prepareQuery($query, $bindings);
 
         $param_Query = [
             'QueryString' => $query,
@@ -252,6 +249,7 @@ class Connection extends MySqlConnection
                 }
             }
 
+            // @$executionResponse['QueryExecution']['Statistics']
             return $executionResponse;
 
         } else {
@@ -266,7 +264,7 @@ class Connection extends MySqlConnection
      * @return bool
      * @throws Exception
      */
-    public function execute($query, $bindings = [])
+    public function statement($query, $bindings = [])
     {
         if ($this->pretending()) {
             return true;
@@ -274,7 +272,7 @@ class Connection extends MySqlConnection
 
         $start = microtime(true);
 
-        $this->executeQuery($query);
+        $this->executeQuery($query, $bindings);
 
         $this->logQuery(
             $query, $bindings, $this->getElapsedTime($start)
@@ -301,14 +299,14 @@ class Connection extends MySqlConnection
 
         $result = [];
         $start = microtime(true);
-
-        if ($executionResponse = $this->executeQuery($query)) {
+        if ($executionResponse = $this->executeQuery($query, $bindings)) {
             $S3OutputLocation = $executionResponse['QueryExecution']['ResultConfiguration']['OutputLocation'];
             $s3FilePath = '/' . $this->config['outputfolder'] . '/' . basename($S3OutputLocation);
             $localFilePath = public_path("report/" . basename($s3FilePath));
 
             if ($this->downloadFileFromS3ToLocalServer($s3FilePath, $localFilePath)) {
                 $this->localFilePath = $localFilePath;
+                dd($s3FilePath, $this->localFilePath);
                 $result = $this->formatCSVFileQueryResults($this->localFilePath);
             }
         }
