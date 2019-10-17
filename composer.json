@@ -15,5 +15,17 @@
             "name": "Bilal Iqbal",
             "email": "bilaliqbalr@gmail.com"
         }
-    ]
+    ],
+    "autoload": {
+        "psr-4": {
+          "Bilaliqbalr\\Athena\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Bilaliqbalr\\Athena\\AthenaServiceProvider"
+            ]
+        }
+    }
 }
