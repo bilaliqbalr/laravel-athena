@@ -15,7 +15,14 @@ class Grammar extends MySqlGrammar
      */
     protected function compileLimit(Builder $query, $limit)
     {
-        return 'BETWEEN '.(int) $limit;
+        // Only apply BETWEEN clause, if missing OFFSET, otherwise use presto way to LIMIT records
+        if (is_int($query->offset)) {
+            // using custom BETWEENLIMIT clause only to detect if it is limit to prevent conflict with BETWEEN.
+            // Handling it in Connection.php
+            return 'BETWEENLIMIT '.(int) $limit;
+        } else {
+            return parent::compileLimit($query, $limit);
+        }
     }
 
     /**

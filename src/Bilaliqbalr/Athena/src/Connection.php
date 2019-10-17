@@ -10,6 +10,7 @@ use Illuminate\Database\MySqlConnection;
 use Illuminate\Database\QueryException;
 use Bilaliqbalr\Athena\Query\Grammar as QueryGrammar;
 use Bilaliqbalr\Athena\Query\Processor;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Config;
 use Bilaliqbalr\Athena\Schema\Builder;
 use Bilaliqbalr\Athena\Schema\Grammar as SchemaGrammar;
@@ -181,11 +182,11 @@ class Connection extends MySqlConnection
     }
 
     /**
-     * @param \Illuminate\Database\Query\Builder $builder
      * @param null $query
      * @param null $binding
      *
      * @return mixed
+     * @throws Exception
      */
     protected function prepareQuery($query, $binding)
     {
@@ -194,6 +195,29 @@ class Connection extends MySqlConnection
                 $from = '/' . preg_quote('?', '/') . '/';
                 $to = "'" . $oneBind . "'";
                 $query = preg_replace($from, $to, $query, 1);
+            }
+        }
+
+        // Modifying query & preparing it for LIMIT as per Athena
+        if (is_int(stripos($query, 'BETWEENLIMIT'))) {
+            // Checking if ROW_NUMBER() OVER() window function applied, then take it as LIMIT query
+            if (!is_int(stripos($query, 'ROW_NUMBER()')) || !is_int(stripos($query, ' rn '))) {
+                throw new Exception("Error: Required `ROW_NUMBER() OVER(...) as rn` to implement LIMIT functionality");
+            } else {
+                $queryParts = preg_split("/BETWEENLIMIT/i", $query);
+                preg_match_all('!\d+!', array_pop($queryParts), $matches);
+                // Calculating offset and limit for Athena
+                $perPage = ($matches[0][0] - 1);
+
+                // Only apply this limit if we have per page greater than 0.
+                // This prevent BETWEEN as WHERE clause to be treated like LIMIT & OFFSET, which occurs if we have
+                // both BETWEEN and ROW_NUMBER() in query but that no LIMIT
+                if ($perPage > 0) {
+                    $page = ($matches[0][1] / $perPage) + 1;
+                    $from = ($perPage * ($page - 1)) + 1;
+                    $to = ($perPage * $page);
+                    $query = "SELECT * FROM ( " . Arr::first($queryParts) . " ) WHERE rn BETWEEN $from AND $to";
+                }
             }
         }
 
@@ -216,7 +240,7 @@ class Connection extends MySqlConnection
      * @return array|\Aws\Result
      * @throws Exception
      */
-    protected function executeQuery($query, $bindings)
+    protected function executeQuery(&$query, $bindings)
     {
         $query = $this->prepareQuery($query, $bindings);
 
@@ -275,7 +299,7 @@ class Connection extends MySqlConnection
         $this->executeQuery($query, $bindings);
 
         $this->logQuery(
-            $query, $bindings, $this->getElapsedTime($start)
+            $query, [], $this->getElapsedTime($start)
         );
 
         return true;
@@ -306,12 +330,11 @@ class Connection extends MySqlConnection
 
             if ($this->downloadFileFromS3ToLocalServer($s3FilePath, $localFilePath)) {
                 $this->localFilePath = $localFilePath;
-                dd($s3FilePath, $this->localFilePath);
                 $result = $this->formatCSVFileQueryResults($this->localFilePath);
             }
         }
         $this->logQuery(
-            $query, $bindings, $this->getElapsedTime($start)
+            $query, [], $this->getElapsedTime($start)
         );
 
         return $result;
